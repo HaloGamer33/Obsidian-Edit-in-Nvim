@@ -83,7 +83,7 @@ export function searchForBinary(name: string): string | undefined {
             accessSync(path, constants.X_OK);
             return path;
         } catch (e) {
-            console.log(
+            logger.log(
                 `Could not find valid binary due to: ${e}, for name: ${name}`,
             );
             return undefined;
@@ -92,3 +92,18 @@ export function searchForBinary(name: string): string | undefined {
 
     return undefined;
 }
+
+
+const isDev = process.env.NODE_ENV === "development";
+export const logger = {
+  log: (...args: any[]) => {
+    if (isDev) console.log(...args);
+  },
+  warn: (...args: any[]) => {
+    if (isDev) console.warn(...args);
+  },
+  error: (...args: any[]) => {
+    // Optionally allow errors even in production
+    console.error(...args);
+  },
+};

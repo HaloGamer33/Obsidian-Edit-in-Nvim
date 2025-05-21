@@ -3,7 +3,7 @@ import { findNvim, attach } from 'neovim';
 import { EditInNeovimSettings } from './Settings';
 import * as child_process from 'node:child_process';
 import * as os from 'node:os';
-import { isPortInUse, searchForBinary, searchDirs } from './utils';
+import { isPortInUse, searchForBinary, searchDirs, logger } from './utils';
 
 export default class Neovim {
     instance: ReturnType<typeof attach> | undefined;
@@ -26,13 +26,13 @@ export default class Neovim {
 
         // Determine Neovim binary path
         if (settings.pathToBinary) {
-            console.log(`Using manual Neovim path: ${settings.pathToBinary}`);
+            logger.log(`Using manual Neovim path: ${settings.pathToBinary}`);
             this.nvimBinary = {
                 path: settings.pathToBinary,
                 nvimVersion: 'manual_path',
             };
         } else {
-            console.log('Searching for Neovim binary in default locations...');
+            logger.log('Searching for Neovim binary in default locations...');
             const found = findNvim({ orderBy: 'desc', paths: searchDirs });
             if (found.matches.length > 0) {
                 this.nvimBinary = found.matches[0];
@@ -55,21 +55,21 @@ export default class Neovim {
             !this.nvimBinary.nvimVersion &&
             settings.pathToBinary
         ) {
-            console.warn(
+            logger.warn(
                 `Using manually provided Neovim path: ${this.nvimBinary.path}. Version check skipped.`,
             );
         } else if (!this.nvimBinary.path && this.nvimBinary.error) {
-            console.error(
+            logger.error(
                 `Failed to find or configure Neovim binary: ${this.nvimBinary.error.message}`,
             );
         } else if (!this.nvimBinary.path && !settings.pathToBinary) {
-            console.error('Neovim binary path could not be determined.');
+            logger.error('Neovim binary path could not be determined.');
             new Notice(
                 'Edit In Neovim: Could not determine Neovim binary path.',
                 10000,
             );
         } else {
-            console.log(`Neovim Information:
+            logger.log(`Neovim Information:
   - Term Path: ${this.termBinary || 'Not Found/Not Set'}
   - Nvim Path: ${this.nvimBinary.path}
   - Version: ${this.nvimBinary.nvimVersion || 'N/A (Manual Path or Check Failed)'}
@@ -78,7 +78,7 @@ export default class Neovim {
 
         // Check terminal binary existence
         if (!this.termBinary) {
-            console.warn(
+            logger.warn(
                 `Could not find terminal binary for: '${settings.terminal}'. Is it installed and in your PATH? Spawning Neovim might fail.`,
             );
         }
@@ -89,7 +89,7 @@ export default class Neovim {
         try {
             return await this.instance.buffers;
         } catch (error) {
-            console.error('Failed to get Neovim buffers:', error);
+            logger.error('Failed to get Neovim buffers:', error);
             new Notice(
                 `Error communicating with Neovim: ${error.message}`,
                 5000,
@@ -101,7 +101,7 @@ export default class Neovim {
     async newInstance(adapter: FileSystemAdapter) {
         if (this.process) {
             new Notice('Linked Neovim instance already running', 5000);
-            console.log('newInstance called, but process already exists.');
+            logger.log('newInstance called, but process already exists.');
             return;
         }
 
@@ -110,7 +110,7 @@ export default class Neovim {
                 `Unknown terminal: '${this.settings.terminal}'. Is it installed and on your PATH? Cannot start Neovim.`,
                 8000,
             );
-            console.error(
+            logger.error(
                 'newInstance failed: Terminal binary path is missing.',
             );
             return;
@@ -120,7 +120,7 @@ export default class Neovim {
                 'Neovim binary path is not configured correctly. Cannot start Neovim.',
                 8000,
             );
-            console.error('newInstance failed: Neovim binary path is missing.');
+            logger.error('newInstance failed: Neovim binary path is missing.');
             return;
         }
 
@@ -182,7 +182,7 @@ export default class Neovim {
                 ];
                 spawnOptions.shell = true;
             } else {
-                console.warn(
+                logger.warn(
                     `Unknown/unhandled Windows terminal: ${termPath}. Attempting generic '-e' execution (shell: false). This may fail.`,
                 );
                 spawnArgs = ['-e', nvimPath, '--listen', listenArg];
@@ -191,12 +191,12 @@ export default class Neovim {
             // Linux/macOS logic
             spawnArgs = ['-e', nvimPath, '--listen', listenArg];
             spawnOptions.shell = os.userInfo().shell || true;
-            console.log(
+            logger.log(
                 `Using config for non-Windows: shell: ${spawnOptions.shell}, args: ${JSON.stringify(spawnArgs)}`,
             );
         }
 
-        console.log(`Attempting to spawn process:
+        logger.log(`Attempting to spawn process:
       Platform: ${process.platform}
       Executable: ${termPath}
       Arguments: ${JSON.stringify(spawnArgs)}
@@ -210,7 +210,7 @@ export default class Neovim {
             );
 
             if (!this.process || this.process.pid === undefined) {
-                console.error(
+                logger.error(
                     'Failed to spawn process object or PID is undefined immediately after spawn call.',
                 );
                 new Notice('Failed to create Neovim process object.', 7000);
@@ -218,14 +218,14 @@ export default class Neovim {
                 return;
             }
 
-            console.log(
+            logger.log(
                 `Process spawned successfully with PID: ${this.process.pid}`,
             );
 
             // --- Attach Event Handlers ---
 
             this.process.on('error', (err) => {
-                console.error(
+                logger.error(
                     "Neovim child_process emitted 'error' event:",
                     err,
                 );
@@ -251,36 +251,36 @@ export default class Neovim {
                 if (this.process) {
                     this.process = undefined;
                     this.instance = undefined;
-                    console.log(
+                    logger.log(
                         "Neovim instance and process state cleared on 'exit'.",
                     );
                 }
             });
 
             this.process.on('disconnect', () => {
-                console.log("Neovim process 'disconnect' event.");
+                logger.log("Neovim process 'disconnect' event.");
                 if (this.process) {
                     this.process = undefined;
                     this.instance = undefined;
-                    console.log(
+                    logger.log(
                         "Neovim instance and process state cleared on 'disconnect'.",
                     );
                 }
             });
 
             // --- Attach to Neovim RPC ---
-            console.log('Attempting to attach to Neovim RPC via process...');
+            logger.log('Attempting to attach to Neovim RPC via process...');
             this.instance = attach({ proc: this.process });
-            console.log('Neovim attach call completed.');
+            logger.log('Neovim attach call completed.');
 
             setTimeout(async () => {
                 if (!this.instance) return;
                 try {
                     await this.instance.eval('1');
-                    console.log('Neovim RPC connection test successful.');
+                    logger.log('Neovim RPC connection test successful.');
                     new Notice('Neovim instance started and connected.', 3000);
                 } catch (rpcError) {
-                    console.error(
+                    logger.error(
                         'Neovim RPC connection failed after spawn:',
                         rpcError,
                     );
@@ -292,7 +292,7 @@ export default class Neovim {
                 }
             }, 1500);
         } catch (spawnError) {
-            console.error(
+            logger.error(
                 'Error caught during child_process.spawn call itself:',
                 spawnError,
             );
@@ -307,7 +307,7 @@ export default class Neovim {
 
     openFile = async (file: TFile | null) => {
         if (!file) {
-            console.log('openFile called with null file.');
+            logger.log('openFile called with null file.');
             return;
         }
 
@@ -322,15 +322,15 @@ export default class Neovim {
         if (isExcalidrawMd) {
             if (this.settings.supportedFileTypes.includes('excalidraw')) {
                 isSupported = true;
-                console.log(`Opening Excalidraw file: ${file.path}`);
+                logger.log(`Opening Excalidraw file: ${file.path}`);
             } else {
                 isSupported = false;
-                console.log(
+                logger.log(
                     `Skipping Excalidraw file (type not enabled): ${file.path}`,
                 );
             }
         } else if (!isSupported) {
-            console.log(
+            logger.log(
                 `Skipping unsupported file type '${file.extension}': ${file.path}`,
             );
         }
@@ -343,7 +343,7 @@ export default class Neovim {
         const port = listenAddress.split(':').at(-1);
 
         if (!nvimPath) {
-            console.error(
+            logger.error(
                 'Cannot open file: Neovim binary path is not configured.',
             );
             new Notice('Neovim path unknown, cannot open file.', 7000);
@@ -352,15 +352,15 @@ export default class Neovim {
 
         let canConnect = false;
         if (this.instance && this.process) {
-            console.log('Found active Neovim instance managed by plugin.');
+            logger.log('Found active Neovim instance managed by plugin.');
             canConnect = true;
         } else if (port) {
-            console.log(
+            logger.log(
                 `Checking if external Neovim is listening on port ${port}...`,
             );
             try {
                 if (await isPortInUse(port)) {
-                    console.log(
+                    logger.log(
                         `Port ${port} is in use. Assuming external Neovim instance is running.`,
                     );
                     new Notice(
@@ -369,17 +369,17 @@ export default class Neovim {
                     );
                     canConnect = true;
                 } else {
-                    console.log(
+                    logger.log(
                         `Port ${port} is not in use. No Neovim instance found.`,
                     );
                 }
             } catch (error) {
-                console.error(`Error checking port ${port}:`, error);
+                logger.error(`Error checking port ${port}:`, error);
             }
         }
 
         if (!canConnect) {
-            console.log(
+            logger.log(
                 'No running Neovim instance (internal or external) found to open file in.',
             );
             new Notice(
@@ -391,7 +391,7 @@ export default class Neovim {
 
         // --- Execute --remote Command ---
         const absolutePath = this.adapter.getFullPath(file.path);
-        console.log(
+        logger.log(
             `Requesting Neovim on ${listenAddress} to open: ${absolutePath}`,
         );
 
@@ -401,7 +401,7 @@ export default class Neovim {
             child_process.execFile(nvimPath, args, (error, stdout, stderr) => {
                 if (error) {
                     // Log detailed error info
-                    console.error(`execFile '--remote' error:
+                    logger.error(`execFile '--remote' error:
                   Command: ${nvimPath}
                   Args: ${JSON.stringify(args)}
                   Error Code: ${error.code}
@@ -431,14 +431,14 @@ export default class Neovim {
                     new Notice(noticeMessage, 10000);
                     return;
                 }
-                if (stdout) console.log(`Neovim --remote stdout: ${stdout}`);
-                if (stderr) console.warn(`Neovim --remote stderr: ${stderr}`);
-                console.log(
+                if (stdout) logger.log(`Neovim --remote stdout: ${stdout}`);
+                if (stderr) logger.warn(`Neovim --remote stderr: ${stderr}`);
+                logger.log(
                     `Successfully sent '--remote' command for: ${file.path}`,
                 );
             });
         } catch (execFileError) {
-            console.error(
+            logger.error(
                 'Error caught during child_process.execFile call:',
                 execFileError,
             );
@@ -450,29 +450,29 @@ export default class Neovim {
     };
 
     close = () => {
-        console.log('Close method called.');
+        logger.log('Close method called.');
         if (this.instance) {
-            console.log('Attempting to quit Neovim instance via RPC...');
+            logger.log('Attempting to quit Neovim instance via RPC...');
             try {
                 this.instance.quit();
             } catch (e) {
-                console.error('Error during instance.quit():', e);
+                logger.error('Error during instance.quit():', e);
             }
             this.instance = undefined;
         } else {
-            console.log('No active Neovim instance object to quit via RPC.');
+            logger.log('No active Neovim instance object to quit via RPC.');
         }
 
         if (this.process) {
-            console.log(`Killing Neovim process (PID: ${this.process.pid})...`);
+            logger.log(`Killing Neovim process (PID: ${this.process.pid})...`);
             const killed = this.process.kill('SIGTERM');
-            console.log(`Process kill('SIGTERM') returned: ${killed}`);
+            logger.log(`Process kill('SIGTERM') returned: ${killed}`);
             this.process = undefined;
         } else {
-            console.log('No active Neovim process object to kill.');
+            logger.log('No active Neovim process object to kill.');
         }
 
-        console.log('Neovim instance and process references cleared.');
+        logger.log('Neovim instance and process references cleared.');
         new Notice('Neovim instance closed.', 3000);
     };
 }
