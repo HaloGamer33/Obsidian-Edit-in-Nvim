@@ -378,7 +378,7 @@ export default class Neovim {
             }
         }
 
-        if (!canConnect) {
+        if (!canConnect && this.settings.warnNoNvimOnNote) {
             logger.log(
                 'No running Neovim instance (internal or external) found to open file in.',
             );

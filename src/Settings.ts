@@ -8,6 +8,7 @@ export interface EditInNeovimSettings {
     openNeovimOnLoad: boolean;
     supportedFileTypes: string[];
     pathToBinary: string;
+    warnNoNvimOnNote: boolean;
 }
 
 export const DEFAULT_SETTINGS: EditInNeovimSettings = {
@@ -16,6 +17,7 @@ export const DEFAULT_SETTINGS: EditInNeovimSettings = {
     openNeovimOnLoad: true,
     supportedFileTypes: ['txt', 'md', 'css', 'js', 'ts', 'tsx', 'jsx', 'json'],
     pathToBinary: '',
+    warnNoNvimOnNote: true,
 };
 
 export default class EditInNeovimSettingsTab extends PluginSettingTab {
@@ -85,6 +87,18 @@ export default class EditInNeovimSettingsTab extends PluginSettingTab {
                     .setValue(this.plugin.settings.openNeovimOnLoad)
                     .onChange(async (value) => {
                         this.plugin.settings.openNeovimOnLoad = value;
+                        await this.plugin.saveSettings();
+                    }),
+            );
+
+        new Setting(containerEl)
+            .setName('Show opening notes warnings')
+            .setDesc('Show warnings when opening notes and a Neovim instance is not detected.')
+            .addToggle((toggle) =>
+                toggle
+                    .setValue(this.plugin.settings.warnNoNvimOnNote)
+                    .onChange(async (value) => {
+                        this.plugin.settings.warnNoNvimOnNote = value;
                         await this.plugin.saveSettings();
                     }),
             );
