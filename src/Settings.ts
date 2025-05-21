@@ -92,7 +92,7 @@ export default class EditInNeovimSettingsTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
-            .setName('Show opening notes warnings')
+            .setName('Warnings when no Neovim instance is running')
             .setDesc('Show warnings when opening notes and a Neovim instance is not detected.')
             .addToggle((toggle) =>
                 toggle
